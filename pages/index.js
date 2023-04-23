@@ -13,8 +13,15 @@ export default function Home() {
   const router = useRouter();
   const userInput = useRef();
 
-  const types = ["phone", "square", "standard", "hd", "cinema", "screen"];
-  const typeOptions = [
+  const ratioDisplayOptions = [
+    "phone",
+    "square",
+    "standard",
+    "hd",
+    "cinema",
+    "screen",
+  ];
+  const ratioOptions = [
     { name: "Phone", index: 0 },
     { name: "Square", index: 1 },
     { name: "Standard", index: 2 },
@@ -22,9 +29,16 @@ export default function Home() {
     { name: "Cinema", index: 4 },
     { name: "Your Screen", index: 5 },
   ];
-  const [typeIndex, setTypeIndex] = useState();
+  const [ratioIndex, setratioIndex] = useState();
 
-  const periods = ["7day", "1month", "3month", "6month", "12month", "overall"];
+  const periodDisplayOptions = [
+    "7day",
+    "1month",
+    "3month",
+    "6month",
+    "12month",
+    "overall",
+  ];
   const periodOptions = [
     { name: "One Week", index: 0 },
     { name: "One Month", index: 1 },
@@ -44,16 +58,16 @@ export default function Home() {
       </Head>
       <div className={"main " + font.className}>
         <input
-          type="text"
+          ratio="text"
           className={"button " + font.className}
           placeholder="User"
           ref={userInput}
         ></input>
         <Picker
-          options={typeOptions}
-          option={typeIndex !== undefined ? typeOptions[typeIndex].name : ""}
+          options={ratioOptions}
+          option={ratioIndex !== undefined ? ratioOptions[ratioIndex].name : ""}
           placeholder="Aspect Ratio"
-          setOption={setTypeIndex}
+          setOption={setratioIndex}
         />
         <Picker
           options={periodOptions}
@@ -67,14 +81,14 @@ export default function Home() {
           onClick={() => {
             if (!userInput.current.value === undefined) return;
             if (periodIndex === undefined) return;
-            if (typeIndex === undefined) return;
+            if (ratioIndex === undefined) return;
 
             router.replace(
               "/collage?" +
                 new URLSearchParams({
                   user: userInput.current.value,
-                  period: periods[periodIndex],
-                  type: types[typeIndex],
+                  period: periodDisplayOptions[periodIndex],
+                  ratio: ratioDisplayOptions[ratioIndex],
                 }).toString()
             );
           }}
