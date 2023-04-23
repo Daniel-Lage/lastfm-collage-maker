@@ -1,35 +1,48 @@
 import Head from "next/head";
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/router";
+import Jimp from "jimp";
 
-function calculate(aspectRatio) {
-  var closest = {
-    albums: null,
-    start: null,
-    end: null,
-    height: null,
-    ratio: Infinity,
-  };
+class CollageBlueprint {
+  constructor(limit = 0, start = 0, end = 0, ratio = 0) {
+    this.limit = limit;
+    this.start = start;
+    this.end = end;
+    this.ratio = ratio;
+  }
 
-  for (let end = 1; end <= 100; end++) {
-    for (let start = 1; start <= end; start++) {
-      var height = 0;
-      var albums = 0;
+  set(limit, start, end, ratio) {
+    this.limit = limit;
+    this.start = start;
+    this.end = end;
+    this.ratio = ratio;
+  }
+}
 
-      for (let index = start; index <= end; index++) {
+function getBlueprint(aspectRatio) {
+  var closest = new CollageBlueprint();
+
+  var height;
+  var albums;
+  var ratio;
+
+  for (let end = 1; end < 50; end++) {
+    for (let start = 1; start < end; start++) {
+      height = 0;
+      albums = 0;
+
+      for (let index = start; start < end + 1; start++) {
         albums += index;
         height += start / index;
       }
 
-      if (albums <= aspectRatio || albums > 100) {
-        continue;
-      }
+      if (albums <= aspectRatio || albums > 100) continue;
 
-      const ratio = start / height;
+      ratio = start / height;
       if (
         Math.abs(aspectRatio - ratio) < Math.abs(aspectRatio - closest.ratio)
       ) {
-        closest = { albums, start, end, height, ratio };
+        closest.set(albums, start, end, ratio);
       }
     }
   }
@@ -37,91 +50,82 @@ function calculate(aspectRatio) {
   return closest;
 }
 
-async function create(canvas, aspectRatio, period, user) {
-  const blueprint = calculate(aspectRatio);
-
-  if (!blueprint.albums) return;
-  if (period === undefined) return;
-  if (user === undefined) return;
-
-  fetch(
-    "http://ws.audioscrobbler.com/2.0/?method=user.gettopalbums&api_key=df0373523543e987dd095adaa12ea8e6&format=json&" +
-      new URLSearchParams({ limit: blueprint.albums, period, user }).toString()
-  )
-    .then((response) => response.json())
-    .then(async (body) => {
-      const albums = body.topalbums.album.map(
-        (value) => value.image[3]["#text"]
-      );
-
-      console.log(
-        new URLSearchParams({
-          limit: blueprint.albums,
-          period,
-          user,
-        }).toString()
-      );
-
-      const albumImageSize = 300;
-
-      canvas.width = albumImageSize * blueprint.start;
-      canvas.height = albumImageSize * blueprint.height;
-      const ctx = canvas.getContext("2d");
-
-      var albumIndex = 0;
-      var height = 0;
-      for (
-        let albumsInRow = blueprint.start;
-        albumsInRow <= blueprint.end;
-        albumsInRow++
-      ) {
-        const size = Math.ceil(
-          (blueprint.start * albumImageSize) / albumsInRow
-        );
-        for (let album = 0; album < albumsInRow; album++) {
-          const imageDetails = [album * size, height, size, size];
-          const image = new Image();
-          image.onload = () => {
-            ctx.drawImage(image, ...imageDetails);
-          };
-          image.src = albums[albumIndex];
-          albumIndex++;
-        }
-        height += size;
-      }
-    });
-}
-
 export default function Home() {
   const router = useRouter();
-  const canvas = useRef();
+  const canvasRef = useRef();
 
   useEffect(() => {
-    const { type, user, period } = router.query;
+    const { ratio, user, period } = router.query;
 
-    var aspectRatio;
-    switch (type) {
-      case "phone":
-        aspectRatio = 9 / 16;
-        break;
-      case "square":
-        aspectRatio = 1;
-        break;
-      case "standard":
-        aspectRatio = 4 / 3;
-        break;
-      case "hd":
-        aspectRatio = 16 / 9;
-        break;
-      case "cinema":
-        aspectRatio = 2;
-        break;
-      case "screen":
-        aspectRatio = screen.width / screen.height;
-        break;
+    if (ratio && user && period) {
+      const blueprintOptions = {
+        phone: new CollageBlueprint(44, 2, 9, 0.5467563462790194),
+        square: new CollageBlueprint(39, 4, 9, 1.00438421681945),
+        standard: new CollageBlueprint(35, 5, 9, 1.341138903672166),
+        hd: new CollageBlueprint(45, 7, 11, 1.7547635627017788),
+        cinema: new CollageBlueprint(18, 5, 7, 1.9626168224299063),
+      };
+      const blueprint = blueprintOptions[ratio];
+      if (blueprint) {
+        const canvas = canvasRef.current;
+
+        canvas.width = blueprint.start * 300;
+        canvas.height = Math.ceil((blueprint.start / blueprint.ratio) * 300);
+
+        fetch(
+          "https://ws.audioscrobbler.com/2.0/?method=user.gettopalbums&api_key=df0373523543e987dd095adaa12ea8e6&format=json&" +
+            new URLSearchParams({
+              limit: blueprint.limit,
+              period,
+              user,
+            }).toString(),
+          { method: "GET", mode: "cors" }
+        )
+          .then((response) => response.json())
+          .then((body) => {
+            if (body.error) {
+              return console.error(body.message);
+            }
+
+            drawImages(
+              blueprint,
+              canvas.getContext("2d"),
+              body.topalbums.album
+            );
+          });
+      }
     }
-    create(canvas.current, aspectRatio, period, user);
   }, [router]);
+
+  function drawImages(blueprint, ctx, albums) {
+    var index = 0;
+    var height = 0;
+    var size = 0;
+
+    for (
+      let albumsInRow = blueprint.start;
+      albumsInRow < blueprint.end + 1;
+      albumsInRow++
+    ) {
+      size = Math.ceil((blueprint.start * 300) / albumsInRow);
+
+      for (let album = 0; album < albumsInRow; album++) {
+        const imageDetails = [album * size, height, size, size];
+        fetch(albums[index].image[3]["#text"])
+          .then((response) => {
+            return response.ok ? response.blob() : null;
+          })
+          .then((blob) => {
+            createImageBitmap(blob).then((image) => {
+              ctx.drawImage(image, ...imageDetails);
+            });
+          });
+        index += 1;
+      }
+
+      height += size;
+    }
+  }
 
   return (
     <>
@@ -130,7 +134,7 @@ export default function Home() {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
-      <canvas ref={canvas}></canvas>
+      <canvas ref={canvasRef}></canvas>
     </>
   );
 }
