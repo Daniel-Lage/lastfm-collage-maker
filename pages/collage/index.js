@@ -55,86 +55,76 @@ export default function Home() {
   const canvasRef = useRef();
 
   useEffect(() => {
-    const { ratio } = router.query;
+    const { ratio, user, period } = router.query;
 
-    const blueprintOptions = {
-      phone: new CollageBlueprint(44, 2, 9, 0.5467563462790194),
-      square: new CollageBlueprint(39, 4, 9, 1.00438421681945),
-      standard: new CollageBlueprint(35, 5, 9, 1.341138903672166),
-      hd: new CollageBlueprint(45, 7, 11, 1.7547635627017788),
-      cinema: new CollageBlueprint(18, 5, 7, 1.9626168224299063),
-      screen: getBlueprint(screen.width / screen.height),
-    };
+    if (ratio && user && period) {
+      const blueprintOptions = {
+        phone: new CollageBlueprint(44, 2, 9, 0.5467563462790194),
+        square: new CollageBlueprint(39, 4, 9, 1.00438421681945),
+        standard: new CollageBlueprint(35, 5, 9, 1.341138903672166),
+        hd: new CollageBlueprint(45, 7, 11, 1.7547635627017788),
+        cinema: new CollageBlueprint(18, 5, 7, 1.9626168224299063),
+      };
+      const blueprint = blueprintOptions[ratio];
+      if (blueprint) {
+        const canvas = canvasRef.current;
 
-    const blueprint = blueprintOptions[ratio];
+        canvas.width = blueprint.start * 300;
+        canvas.height = Math.ceil((blueprint.start / blueprint.ratio) * 300);
 
-    const albums = require("../../components/albums.json");
+        fetch(
+          "https://ws.audioscrobbler.com/2.0/?method=user.gettopalbums&api_key=df0373523543e987dd095adaa12ea8e6&format=json&" +
+            new URLSearchParams({
+              limit: blueprint.limit,
+              period,
+              user,
+            }).toString(),
+          { method: "GET", mode: "cors" }
+        )
+          .then((response) => response.json())
+          .then((body) => {
+            if (body.error) {
+              return console.error(body.message);
+            }
 
-    const canvas = canvasRef.current;
-
-    canvas.width = blueprint.start * 300;
-    canvas.height = Math.ceil((blueprint.start / blueprint.ratio) * 300);
-
-    const ctx = canvas.getContext("2d");
-    fetch(albums[0].image[3]["#text"], {
-      method: "GET",
-      mode: "cors",
-    })
-      .then((response) => {
-        if (response.ok) return response.blob();
-      })
-      .then((blob) => {
-        createImageBitmap(blob).then((image) => {
-          ctx.drawImage(image, 0, 0, 300, 300);
-        });
-      });
-
-    // createCollage(blueprintOptions[ratio]);
+            drawImages(
+              blueprint,
+              canvas.getContext("2d"),
+              body.topalbums.album
+            );
+          });
+      }
+    }
   }, [router]);
 
-  function createCollage(blueprint) {
-    const { user, period } = router.query;
+  function drawImages(blueprint, ctx, albums) {
+    var index = 0;
+    var height = 0;
+    var size = 0;
 
-    if (!blueprint?.limit) return;
-    if (period === undefined) return;
-    if (user === undefined) return;
+    for (
+      let albumsInRow = blueprint.start;
+      albumsInRow < blueprint.end + 1;
+      albumsInRow++
+    ) {
+      size = Math.ceil((blueprint.start * 300) / albumsInRow);
 
-    fetch(
-      "https://ws.audioscrobbler.com/2.0/?method=user.gettopalbums&api_key=df0373523543e987dd095adaa12ea8e6&format=json&" +
-        new URLSearchParams({
-          limit: blueprint.limit,
-          period,
-          user,
-        }).toString(),
-      { method: "GET", mode: "cors" }
-    )
-      .then((response) => response.json())
-      .then((body) => {
-        if (body.error) {
-          return console.error(body.message);
-        }
-        var index = 0;
-        var height = 0;
-        var size = 0;
-
-        for (
-          let albumsInRow = blueprint.start;
-          albumsInRow < blueprint.end + 1;
-          albumsInRow++
-        ) {
-          size = Math.ceil((blueprint.start * 300) / albumsInRow);
-
-          for (let albumIndex = 0; albumIndex < albumsInRow - 1; albumIndex++) {
-            fetch(body.topalbums.album[index].image[3]["#text"], {
-              method: "GET",
-              mode: "cors",
+      for (let album = 0; album < albumsInRow; album++) {
+        const imageDetails = [album * size, height, size, size];
+        fetch(albums[index].image[3]["#text"])
+          .then((response) => {
+            return response.ok ? response.blob() : null;
+          })
+          .then((blob) => {
+            createImageBitmap(blob).then((image) => {
+              ctx.drawImage(image, ...imageDetails);
             });
-            index += 1;
-          }
+          });
+        index += 1;
+      }
 
-          height += size;
-        }
-      });
+      height += size;
+    }
   }
 
   return (

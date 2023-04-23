@@ -13,21 +13,13 @@ export default function Home() {
   const router = useRouter();
   const userInput = useRef();
 
-  const ratioDisplayOptions = [
-    "phone",
-    "square",
-    "standard",
-    "hd",
-    "cinema",
-    "screen",
-  ];
+  const ratioDisplayOptions = ["phone", "square", "standard", "hd", "cinema"];
   const ratioOptions = [
     { name: "Phone", index: 0 },
     { name: "Square", index: 1 },
     { name: "Standard", index: 2 },
     { name: "Wide", index: 3 },
     { name: "Cinema", index: 4 },
-    { name: "Your Screen", index: 5 },
   ];
   const [ratioIndex, setratioIndex] = useState();
 
